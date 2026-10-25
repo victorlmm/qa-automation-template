@@ -1,0 +1,66 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 9 * * 1-5"   # weekday regression, 09:00 UTC
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [dev, qa, staging, prod]
+        default: qa
+      suite:
+        description: Test suite (pytest marker expression)
+        type: choice
+        options: [smoke, regression, api, ui, "smoke or regression"]
+        default: smoke
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check .
+      - run: ruff format --check .
+
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Push/PR → smoke on qa · schedule → full regression · manual → your choice
+      TEST_ENV: ${{ inputs.environment || 'qa' }}
+      SUITE: ${{ inputs.suite || (github.event_name == 'schedule' && 'smoke or regression') || 'smoke' }}
+      API_TOKEN: ${{ secrets.API_TOKEN }}
+      TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+      TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+
+      - name: Run tests (${{ env.SUITE }} on ${{ env.TEST_ENV }})
+        run: pytest -m "${{ env.SUITE }}" -n auto --reruns 1
+
+      - name: Upload report and failure artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ env.TEST_ENV }}
+          path: reports/
+          retention-days: 14

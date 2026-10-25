@@ -1,0 +1,16 @@
+# QA environment. Default when no environment is selected.
+base_url = "https://automationexercise.com"
+api_base_url = "https://automationexercise.com/api"
+
+[api]
+timeout_seconds = 15
+retries = 2
+
+[browser]
+viewport_width = 1440
+viewport_height = 900
+# Third-party hosts to block (ads, analytics, chat widgets) for faster, more stable runs.
+block_hosts = ["googlesyndication", "doubleclick", "googleadservices", "fundingchoicesmessages", "googletagmanager", "google-analytics"]
+
+[logging]
+level = "INFO"
